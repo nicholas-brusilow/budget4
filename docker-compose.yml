@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: budget
+      POSTGRES_PASSWORD: budget
+      POSTGRES_DB: budget
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U budget -d budget"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://budget:budget@db:5432/budget
+      RAWDATA_DIR: /app/rawdata
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./rawdata:/app/rawdata:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

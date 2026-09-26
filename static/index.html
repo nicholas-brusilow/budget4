@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Budget4</title>
+    <link rel="stylesheet" href="/css/styles.css?v=2" />
+  </head>
+  <body>
+    <div id="app">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19V9M10 19V5M16 19v-6M3 21h18" />
+            </svg>
+          </span>
+          <span class="brand-name">Budget<span class="brand-accent">4</span></span>
+        </div>
+        <div class="brand-demo">
+          <span class="badge badge-system" id="demo-badge" hidden>Demo data</span>
+        </div>
+        <nav class="nav" id="nav" aria-label="Primary"></nav>
+      </aside>
+
+      <div class="main">
+        <header class="topbar">
+          <div class="topbar-head">
+            <div class="topbar-title">
+              <h1 id="page-title">Expenditures</h1>
+              <p id="page-subtitle" class="page-subtitle"></p>
+            </div>
+          </div>
+          <div class="filter-bar" id="filter-bar" hidden>
+            <label class="field">
+              <span class="field-label">From</span>
+              <input type="date" class="input" id="filter-start" />
+            </label>
+            <label class="field">
+              <span class="field-label">To</span>
+              <input type="date" class="input" id="filter-end" />
+            </label>
+            <div class="field" id="filter-cat-wrap"></div>
+            <div class="field" id="filter-nec-wrap"></div>
+            <div class="field filter-actions">
+              <span class="field-label">&nbsp;</span>
+              <button type="button" class="btn btn-ghost" id="filter-reset">Reset</button>
+            </div>
+          </div>
+        </header>
+
+        <main class="outlet" id="outlet"></main>
+      </div>
+    </div>
+
+    <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+    <div class="modal-root" id="modal-root"></div>
+
+    <script src="/vendor/chart.umd.min.js"></script>
+    <script type="module" src="/js/app.js?v=2"></script>
+  </body>
+</html>
