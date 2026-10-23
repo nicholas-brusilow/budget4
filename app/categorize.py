@@ -16,6 +16,7 @@ from .models import (
     ReviewedTransaction,
     Transaction,
 )
+from .settings import get_data_source
 
 
 def _reviewed_subquery():
@@ -108,6 +109,7 @@ def review_scan(session: Session) -> dict:
             Transaction.ignore.is_(False),
             Transaction.category == "",
             Transaction.necessity_level == "",
+            Transaction.data_source == get_data_source(session),
             Transaction.dedup_key.not_in(_reviewed_subquery()),
         )
         .order_by(Transaction.date, Transaction.id)
@@ -176,7 +178,10 @@ def approve(session: Session, keys) -> dict:
 
     for key in keys:
         tx = session.execute(
-            select(Transaction).where(Transaction.dedup_key == key)
+            select(Transaction).where(
+                Transaction.dedup_key == key,
+                Transaction.data_source == get_data_source(session),
+            )
         ).scalars().first()
         if tx is None or tx.ignore or tx.category or tx.necessity_level:
             skipped.append({"dedup_key": key, "reason": "not_pending"})

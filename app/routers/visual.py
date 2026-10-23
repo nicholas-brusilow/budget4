@@ -11,6 +11,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from ..db import get_session
+from ..settings import get_data_source
 
 router = APIRouter(tags=["visual"])
 
@@ -28,7 +29,7 @@ CROSS JOIN LATERAL generate_series(
     GREATEST(t.timescale, t.timescale_end),
     interval '1 day'
 ) AS gs
-WHERE t.ignore = false
+WHERE t.ignore = false AND t.data_source = :source
 """
 
 
@@ -41,7 +42,7 @@ def visual_data(
     session: Session = Depends(get_session),
 ) -> dict:
     sql = _BASE_SQL
-    params: dict = {}
+    params: dict = {"source": get_data_source(session)}
     expanding: list[str] = []
 
     if date_start is not None:

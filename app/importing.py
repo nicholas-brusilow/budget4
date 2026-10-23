@@ -18,7 +18,7 @@ from .categorize import income_category_name
 from .config import RAWDATA_DIR
 from .dedup import make_dedup_key
 from .models import ImportConfig, Transaction
-from .settings import is_demo
+from .settings import SOURCE_LIVE, is_demo
 
 
 def account_folders() -> list[str]:
@@ -164,7 +164,9 @@ def run_import(session: Session) -> dict:
     """
     if is_demo(session):
         total = session.execute(
-            select(func.count()).select_from(Transaction)
+            select(func.count())
+            .select_from(Transaction)
+            .where(Transaction.data_source == SOURCE_LIVE)
         ).scalar_one()
         return {
             "added": 0,
@@ -176,7 +178,11 @@ def run_import(session: Session) -> dict:
 
     configs = load_configs(session)
     existing: set[str] = set(
-        session.execute(select(Transaction.dedup_key)).scalars().all()
+        session.execute(
+            select(Transaction.dedup_key).where(
+                Transaction.data_source == SOURCE_LIVE
+            )
+        ).scalars().all()
     )
     income_name = income_category_name(session)
 
@@ -233,6 +239,7 @@ def run_import(session: Session) -> dict:
                                 timescale=tx_date,
                                 timescale_end=tx_date,
                                 ignore=False,
+                                data_source=SOURCE_LIVE,
                                 dedup_key=key,
                             ),
                         )
@@ -263,7 +270,11 @@ def run_import(session: Session) -> dict:
         )
 
     session.commit()
-    total = session.execute(select(func.count()).select_from(Transaction)).scalar_one()
+    total = session.execute(
+        select(func.count())
+        .select_from(Transaction)
+        .where(Transaction.data_source == SOURCE_LIVE)
+    ).scalar_one()
 
     return {
         "added": added,

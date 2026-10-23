@@ -14,6 +14,7 @@ export const KEYS = {
   pageSize: 'b4.pageSize',
   pieScale: 'b4.pieScale',
   barScale: 'b4.barScale',
+  ieGroup: 'b4.ieGroup',
 };
 
 const DEFAULTS = {
@@ -26,6 +27,7 @@ const DEFAULTS = {
   [KEYS.pageSize]: 50,
   [KEYS.pieScale]: 'total',
   [KEYS.barScale]: 'total',
+  [KEYS.ieGroup]: 'category',
 };
 
 const cache = {};

@@ -12,6 +12,7 @@ import sys
 from decimal import Decimal
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.orm import Session
 
 from .db import Base, SessionLocal, engine
 from .dedup import make_dedup_key
@@ -67,6 +68,7 @@ def _tx(
         timescale=timescale or date,
         timescale_end=timescale_end or date,
         ignore=ignore,
+        data_source=SOURCE_DEMO,
         dedup_key=make_dedup_key(date, amount, description),
     )
 
@@ -286,7 +288,9 @@ def _print_category_summary(rows: list[Transaction]) -> None:
 
 
 def reset_to_demo(session) -> int:
-    """Wipe live data and install the deterministic demo dataset."""
+    """Developer escape hatch: wipe EVERY transaction (both datasets) and
+    install the deterministic demo dataset. Destructive; used by the CLI only.
+    """
     session.execute(delete(Transaction))
     session.execute(delete(ReviewedTransaction))
     session.execute(delete(CategorizationRule))
@@ -305,13 +309,17 @@ def reset_to_demo(session) -> int:
     return len(rows)
 
 
-def ensure_demo_seeded(session) -> int:
-    """Self-heal: insert the demo dataset when in demo mode but empty."""
-    if not is_demo(session):
-        return 0
-    count = session.execute(select(func.count()).select_from(Transaction)).scalar_one()
-    if count:
-        return 0
+def _demo_count(session: Session) -> int:
+    return int(
+        session.execute(
+            select(func.count())
+            .select_from(Transaction)
+            .where(Transaction.data_source == SOURCE_DEMO)
+        ).scalar_one()
+    )
+
+
+def _insert_demo_rows(session: Session) -> int:
     rows = build_demo_transactions()
     session.add_all(rows)
     session.commit()
@@ -319,17 +327,34 @@ def ensure_demo_seeded(session) -> int:
     return len(rows)
 
 
-def switch_to_live(session) -> dict:
-    """Wipe demo data, restore import configs, and import rawdata."""
-    session.execute(delete(Transaction))
-    session.execute(delete(ReviewedTransaction))
-    session.execute(delete(CategorizationRule))
-    session.commit()
+def ensure_demo_seeded(session: Session) -> int:
+    """Self-heal: insert the demo dataset when in demo mode but empty."""
+    if not is_demo(session):
+        return 0
+    if _demo_count(session):
+        return 0
+    return _insert_demo_rows(session)
 
+
+def load_demo(session: Session) -> int:
+    """Activate the demo dataset, generating it on first use.
+
+    Live transactions and both datasets' categorizations are left untouched.
+    """
+    set_data_source(session, SOURCE_DEMO)
+    if _demo_count(session) == 0:
+        _insert_demo_rows(session)
+    return _demo_count(session)
+
+
+def switch_to_live(session: Session) -> dict:
+    """Activate the live dataset, importing any new rawdata files.
+
+    Demo transactions and both datasets' categorizations are left untouched.
+    """
     set_data_source(session, SOURCE_LIVE)
     seed(session, demo_mode=False)
     session.commit()
-
     result = run_import(session)
     print(
         "Switched to live mode: "
@@ -341,13 +366,15 @@ def switch_to_live(session) -> dict:
 
 def status(session) -> None:
     source = get_data_source(session)
-    count = session.execute(select(func.count()).select_from(Transaction)).scalar_one()
+    live_count = int(session.execute(select(func.count()).select_from(Transaction).where(Transaction.data_source == SOURCE_LIVE)).scalar_one())
+    demo_count = int(session.execute(select(func.count()).select_from(Transaction).where(Transaction.data_source == SOURCE_DEMO)).scalar_one())
+    active = live_count if source == SOURCE_LIVE else demo_count
     date_min, date_max = session.execute(
-        select(func.min(Transaction.date), func.max(Transaction.date))
+        select(func.min(Transaction.date), func.max(Transaction.date)).where(Transaction.data_source == source)
     ).one()
     category_count = session.execute(select(func.count()).select_from(Category)).scalar_one()
     print(f"data_source:     {source}")
-    print(f"transactions:    {int(count)}")
+    print(f"transactions:    {active} active ({live_count} live / {demo_count} demo)")
     print(f"date range:      {date_min} .. {date_max}")
     print(f"categories:      {int(category_count)}")
 

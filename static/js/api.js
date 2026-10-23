@@ -91,6 +91,9 @@ export async function request(path, { method = 'GET', body, params } = {}) {
 
 export const getMeta = () => request('/meta');
 
+export const loadDemoData = () => request('/demo/load', { method: 'POST' });
+export const restoreLiveData = () => request('/demo/live', { method: 'POST' });
+
 export const getTransactions = (params) => request('/transactions', { params });
 export const patchTransactions = (updates) =>
   request('/transactions', { method: 'PATCH', body: { updates } });

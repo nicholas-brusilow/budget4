@@ -123,6 +123,9 @@ a { color: inherit; text-decoration: none; }
   margin-top: -6px;
 }
 
+.sidebar-foot { margin-top: auto; padding: 0 4px 4px; }
+.sidebar-action { width: 100%; }
+
 .nav { display: flex; flex-direction: column; gap: 3px; }
 
 .nav-item {
@@ -829,6 +832,8 @@ details.expander .expander-body { padding: 0 13px 13px; }
   .brand { border-bottom: none; padding: 0 10px 0 2px; flex: 0 0 auto; }
   .brand-name { font-size: 16px; }
   .brand-demo { margin-top: 0; padding: 0 4px; }
+  .sidebar-foot { margin-top: 0; margin-left: auto; padding: 0; flex: 0 0 auto; }
+  .sidebar-action { width: auto; }
   .nav { flex-direction: row; gap: 4px; }
   .nav-item { padding: 7px 10px; }
   .nav-item.active::before { left: 8px; right: 8px; top: auto; bottom: 0; width: auto; height: 2px; border-radius: 2px 2px 0 0; }
@@ -846,3 +851,17 @@ details.expander .expander-body { padding: 0 13px 13px; }
   .card { padding: 14px; }
   .total-label { font-size: 22px; }
 }
+
+/* ============================================================
+   Income Expenditure flow diagram
+   ============================================================ */
+
+.flow-scroll { overflow-x: auto; }
+.flow-svg { display: block; width: 100%; height: auto; min-width: 720px; }
+.flow-ribbon { fill-opacity: 0.28; transition: fill-opacity 0.15s ease; }
+.flow-ribbon:hover { fill-opacity: 0.55; }
+.flow-node rect { transition: filter 0.15s ease; }
+.flow-node:hover rect { filter: brightness(1.25); }
+.flow-node-label { fill: var(--text); font-family: var(--font); font-size: 12.5px; font-weight: 600; }
+.flow-node-amount { fill: var(--muted); font-family: var(--mono); font-size: 11px; }
+.flow-col-head { fill: var(--muted); font-family: var(--font); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }

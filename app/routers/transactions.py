@@ -12,6 +12,7 @@ from ..db import get_session
 from ..dedup import make_dedup_key
 from ..models import Transaction
 from ..schemas import TransactionCreate, TransactionUpdateRequest
+from ..settings import get_data_source
 
 router = APIRouter(tags=["transactions"])
 
@@ -64,7 +65,7 @@ def list_transactions(
     sort = sort if sort in SORT_COLUMNS else "date"
     order = order.lower() if order.lower() in {"asc", "desc"} else "desc"
 
-    filters = []
+    filters = [Transaction.data_source == get_data_source(session)]
     if date_start is not None:
         filters.append(Transaction.date >= date_start)
     if date_end is not None:
@@ -120,10 +121,13 @@ def patch_transactions(
         return {"updated": 0}
 
     ids = [u.id for u in updates]
+    source = get_data_source(session)
     found = {
         tx.id: tx
         for tx in session.execute(
-            select(Transaction).where(Transaction.id.in_(ids))
+            select(Transaction).where(
+                Transaction.id.in_(ids), Transaction.data_source == source
+            )
         ).scalars().all()
     }
     for tx_id in ids:
@@ -188,6 +192,7 @@ def create_transaction(
         timescale=body.date,
         timescale_end=body.date,
         ignore=False,
+        data_source=get_data_source(session),
         dedup_key=make_dedup_key(body.date, amount, description),
     )
     session.add(tx)

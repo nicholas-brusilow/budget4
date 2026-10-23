@@ -62,6 +62,7 @@ class Transaction(Base):
         Index("ix_transactions_necessity_level", "necessity_level"),
         Index("ix_transactions_account", "account"),
         Index("ix_transactions_ignore", "ignore"),
+        Index("ix_transactions_data_source", "data_source"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -74,6 +75,9 @@ class Transaction(Base):
     timescale: Mapped[datetime.date] = mapped_column(Date, nullable=False)
     timescale_end: Mapped[datetime.date] = mapped_column(Date, nullable=False)
     ignore: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    data_source: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="live", server_default="live"
+    )
     # Non-unique: manual entries may legitimately repeat the same key.
     dedup_key: Mapped[str] = mapped_column(Text, nullable=False, index=True)
 

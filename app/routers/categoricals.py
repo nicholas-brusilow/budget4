@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from ..db import get_session
 from ..models import CategorizationRule, Category, NecessityLevel, Transaction
 from ..schemas import CategoryCreate, NecessityLevelCreate, RenameRequest
+from ..settings import get_data_source
 
 router = APIRouter(tags=["categoricals"])
 
@@ -17,6 +18,7 @@ def _category_counts(session: Session) -> dict[str, int]:
     return dict(
         session.execute(
             select(Transaction.category, func.count())
+            .where(Transaction.data_source == get_data_source(session))
             .group_by(Transaction.category)
             .having(Transaction.category != "")
         ).all()
@@ -139,6 +141,7 @@ def _necessity_counts(session: Session) -> dict[str, int]:
     return dict(
         session.execute(
             select(Transaction.necessity_level, func.count())
+            .where(Transaction.data_source == get_data_source(session))
             .group_by(Transaction.necessity_level)
             .having(Transaction.necessity_level != "")
         ).all()

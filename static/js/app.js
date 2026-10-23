@@ -15,6 +15,7 @@ import * as pieCharts from './pages/pie_charts.js';
 import * as barCharts from './pages/bar_charts.js';
 import * as monthOverMonth from './pages/month_over_month.js';
 import * as cumulativeLinePlot from './pages/cumulative_line_plot.js';
+import * as incomeExpenditure from './pages/income_expenditure.js';
 
 /* ------------------------------------------------------------------ */
 /* Shared meta                                                         */
@@ -30,11 +31,18 @@ export function getMeta() {
   return meta;
 }
 
-/** Show the sidebar "Demo data" badge when the API reports demo mode. */
-function updateDemoBadge() {
+/** Show the sidebar "Demo data" badge and label the demo/live toggle. */
+function updateDemoControls() {
   const badge = document.getElementById('demo-badge');
-  if (!badge) return;
-  badge.hidden = !(meta && meta.demo_mode);
+  if (badge) badge.hidden = !(meta && meta.demo_mode);
+  const btn = document.getElementById('demo-toggle');
+  if (btn) {
+    const demo = !!(meta && meta.demo_mode);
+    btn.textContent = demo ? 'Restore Live Data' : 'Load Demo Data';
+    btn.title = demo
+      ? 'Switch back to the imported rawdata; the demo dataset is kept'
+      : 'Switch to the deterministic demo dataset; imported data is kept';
+  }
 }
 
 /**
@@ -43,7 +51,7 @@ function updateDemoBadge() {
  */
 export async function reloadMeta({ refreshFilters = true } = {}) {
   meta = await api.getMeta();
-  updateDemoBadge();
+  updateDemoControls();
   if (refreshFilters && shellReady) rebuildFilterOptions();
   return meta;
 }
@@ -69,6 +77,7 @@ const ICONS = {
   bar: '<path d="M3 21h18"/><rect x="5" y="11" width="3.5" height="8" rx="1"/><rect x="10.5" y="6" width="3.5" height="13" rx="1"/><rect x="16" y="14" width="3.5" height="5" rx="1"/>',
   mom: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/>',
   cumulative: '<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 4-7"/>',
+  flow: '<circle cx="5" cy="6" r="2.2"/><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="12" r="2.2"/><path d="M7 6.8C12 7 14 9 16.8 11M7 17.2C12 17 14 15 16.8 13"/>',
 };
 
 function icon(name) {
@@ -85,6 +94,7 @@ const NAV_ITEMS = [
   { path: '/bar', label: 'Bar Charts', title: 'Bar Charts', subtitle: 'Spending ranked by category and necessity', icon: 'bar', render: barCharts.render, filters: true },
   { path: '/mom', label: 'Month-over-Month', title: 'Month-over-Month', subtitle: 'Compare complete months in the selected range', icon: 'mom', render: monthOverMonth.render, filters: true },
   { path: '/cumulative', label: 'Cumulative Line Plot', title: 'Cumulative Line Plot', subtitle: 'Cumulative spending over the selected range', icon: 'cumulative', render: cumulativeLinePlot.render, filters: true },
+  { path: '/income-expenditure', label: 'Income Expenditure View', title: 'Income Expenditure View', subtitle: 'Income streams flowing into expenditure', icon: 'flow', render: incomeExpenditure.render, filters: true, hideCategoryFilter: true, hideNecessityFilter: true },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -426,17 +436,83 @@ function wireFilterBar() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Demo / live data-source toggle                                      */
+/* ------------------------------------------------------------------ */
+
+/** Point the global date filters at the freshly loaded dataset's bounds. */
+function resetFiltersForMeta() {
+  const today = api.todayISO();
+  const minDate = (meta && meta.date_min) || today;
+  const maxDate = (meta && meta.date_max) || today;
+  store.set(store.KEYS.dateStart, minDate);
+  store.set(store.KEYS.dateEnd, maxDate < today ? maxDate : today);
+  store.set(store.KEYS.categories, []);
+  store.set(store.KEYS.necessity, []);
+}
+
+async function onDemoToggle() {
+  const demo = !!(meta && meta.demo_mode);
+  const ok = await confirmDialog({
+    title: demo ? 'Restore live data?' : 'Load demo data?',
+    message: demo
+      ? 'Switch back to the imported rawdata (new CSV files are picked up automatically). The demo dataset and its categorizations are kept.'
+      : 'Switch to the deterministic demo dataset. Your imported transactions and their categorizations are kept.',
+    confirmLabel: demo ? 'Restore Live Data' : 'Load Demo Data',
+    danger: !demo,
+  });
+  if (!ok) return;
+  const btn = el('demo-toggle');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = demo ? 'Restoring\u2026' : 'Loading\u2026';
+  }
+  try {
+    const res = demo ? await api.restoreLiveData() : await api.loadDemoData();
+    await reloadMeta({ refreshFilters: false });
+    resetFiltersForMeta();
+    rebuildFilterOptions();
+    buildNav();
+    toast((res && res.message) || (demo ? 'Live data restored.' : 'Demo data loaded.'), 'success');
+    router.refresh();
+  } catch (err) {
+    toast((err && err.message) || 'Failed to switch data source', 'error');
+    try {
+      await reloadMeta();
+    } catch {
+      /* keep the last known meta */
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+    updateDemoControls();
+  }
+}
+
+function wireDemoToggle() {
+  const btn = el('demo-toggle');
+  if (!btn || btn.dataset.wired === '1') return;
+  btn.dataset.wired = '1';
+  btn.addEventListener('click', onDemoToggle);
+}
+
+/* ------------------------------------------------------------------ */
 /* Shell + routing                                                     */
 /* ------------------------------------------------------------------ */
 
 function buildNav() {
   const nav = el('nav');
   nav.innerHTML = '';
+  // Reflect the current route when the nav is (re)built. This keeps the
+  // active item correct even if buildNav runs after a route has rendered
+  // (e.g. the shell module can be evaluated twice when the entry URL and
+  // the page imports resolve to different module URLs).
+  const hashPath = String(window.location.hash || '').replace(/^#/, '');
+  const activePath = hashPath && !hashPath.startsWith('/') ? `/${hashPath}` : hashPath;
   for (const item of NAV_ITEMS) {
     const a = document.createElement('a');
     a.className = 'nav-item';
     a.href = `#${item.path}`;
     a.dataset.path = item.path;
+    if (item.path === activePath) a.classList.add('active');
     a.innerHTML = `${icon(item.icon)}<span class="nav-label">${api.esc(item.label)}</span>`;
     nav.appendChild(a);
   }
@@ -459,6 +535,13 @@ function handleRoute(def, path) {
   const filterBar = el('filter-bar');
   if (filterBar) filterBar.hidden = !def.filters;
 
+  // Unconditionally (re)assign the sub-filter visibility so navigating away
+  // from a page that hides them restores them on the next page.
+  const catWrap = el('filter-cat-wrap');
+  const necWrap = el('filter-nec-wrap');
+  if (catWrap) catWrap.hidden = !!def.hideCategoryFilter;
+  if (necWrap) necWrap.hidden = !!def.hideNecessityFilter;
+
   for (const a of document.querySelectorAll('.nav-item')) {
     a.classList.toggle('active', a.dataset.path === path);
   }
@@ -477,6 +560,8 @@ function registerRoutes() {
       title: item.title,
       subtitle: item.subtitle,
       filters: !!item.filters,
+      hideCategoryFilter: !!item.hideCategoryFilter,
+      hideNecessityFilter: !!item.hideNecessityFilter,
       render: item.render,
     });
   }
@@ -511,7 +596,7 @@ async function boot() {
     renderFatal(err);
     return;
   }
-  updateDemoBadge();
+  updateDemoControls();
   if (!shellReady) {
     buildNav();
     registerRoutes();
@@ -525,6 +610,7 @@ async function boot() {
       return true;
     });
     wireFilterBar();
+    wireDemoToggle();
     shellReady = true;
   } else {
     buildNav();

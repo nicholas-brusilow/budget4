@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ..db import get_session
 from ..importing import load_configs, pending_accounts
 from ..models import Category, NecessityLevel, Transaction
-from ..settings import is_demo
+from ..settings import get_data_source, is_demo
 
 router = APIRouter(tags=["meta"])
 
@@ -22,17 +22,23 @@ def health(session: Session = Depends(get_session)) -> dict:
 
 @router.get("/meta")
 def meta(session: Session = Depends(get_session)) -> dict:
+    source = get_data_source(session)
     tx_accounts = set(
         session.execute(
-            select(Transaction.account).where(Transaction.account != "").distinct()
+            select(Transaction.account)
+            .where(Transaction.account != "", Transaction.data_source == source)
+            .distinct()
         ).scalars().all()
     )
-    configured = set(load_configs(session).keys())
+    # Import configs describe the live rawdata folders; they are not part of the
+    # demo dataset, so only surface them while live is active.
+    configured = set(load_configs(session).keys()) if not is_demo(session) else set()
     accounts = sorted(tx_accounts | configured | {"Cash", "Crypto"})
 
     category_counts = dict(
         session.execute(
             select(Transaction.category, func.count())
+            .where(Transaction.data_source == source)
             .group_by(Transaction.category)
             .having(Transaction.category != "")
         ).all()
@@ -53,6 +59,7 @@ def meta(session: Session = Depends(get_session)) -> dict:
     necessity_counts = dict(
         session.execute(
             select(Transaction.necessity_level, func.count())
+            .where(Transaction.data_source == source)
             .group_by(Transaction.necessity_level)
             .having(Transaction.necessity_level != "")
         ).all()
@@ -70,16 +77,21 @@ def meta(session: Session = Depends(get_session)) -> dict:
     ]
 
     date_min, date_max = session.execute(
-        select(func.min(Transaction.date), func.max(Transaction.date))
+        select(func.min(Transaction.date), func.max(Transaction.date)).where(
+            Transaction.data_source == source
+        )
     ).one()
     transaction_count = session.execute(
-        select(func.count()).select_from(Transaction)
+        select(func.count())
+        .select_from(Transaction)
+        .where(Transaction.data_source == source)
     ).scalar_one()
     uncategorized_count = session.execute(
         select(func.count())
         .select_from(Transaction)
         .where(
             Transaction.ignore.is_(False),
+            Transaction.data_source == source,
             or_(Transaction.category == "", Transaction.necessity_level == ""),
         )
     ).scalar_one()

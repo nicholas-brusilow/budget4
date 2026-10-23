@@ -13,7 +13,8 @@ from .config import STATIC_DIR
 from .db import Base, SessionLocal, engine
 from .demo import ensure_demo_seeded
 from .importing import run_import
-from .routers import categoricals, imports, meta, rules, transactions, visual
+from .migrations import ensure_transaction_source
+from .routers import categoricals, demo, imports, meta, rules, transactions, visual
 from .seed import seed
 from .settings import is_demo
 
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI):
         raise last_error
 
     Base.metadata.create_all(engine)
+    ensure_transaction_source(engine)
 
     with SessionLocal() as session:
         demo = is_demo(session)
@@ -76,6 +78,7 @@ async def no_cache_assets(request, call_next):
 
 
 app.include_router(meta.router, prefix="/api")
+app.include_router(demo.router, prefix="/api")
 app.include_router(transactions.router, prefix="/api")
 app.include_router(imports.router, prefix="/api")
 app.include_router(categoricals.router, prefix="/api")
